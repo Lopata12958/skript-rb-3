@@ -1,0 +1,471 @@
+-- Создаём ScreenGui
+local player = game:GetService("Players").LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MyButtonGui"
+screenGui.Parent = playerGui
+
+-- Создаём фрейм для кнопок
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 470) -- Увеличиваем высоту для новой кнопки
+frame.Position = UDim2.new(0.5, -100, 0.5, -235) -- Корректируем позицию
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+-- Создаём заголовок
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 20)
+header.Position = UDim2.new(0, 0, 0, 0)
+header.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+header.BorderSizePixel = 0
+header.Parent = frame
+
+-- Текст заголовка
+local headerText = Instance.new("TextLabel")
+headerText.Size = UDim2.new(1, -30, 1, 0)
+headerText.Position = UDim2.new(0, 5, 0, 0)
+headerText.Text = "Панель управления"
+headerText.TextColor3 = Color3.fromRGB(255, 255, 255)
+headerText.TextXAlignment = Enum.TextXAlignment.Left
+headerText.BackgroundTransparency = 1
+headerText.Parent = header
+
+-- Кнопка для сворачивания/разворачивания
+local collapseButton = Instance.new("TextButton")
+collapseButton.Size = UDim2.new(0, 20, 0, 20)
+collapseButton.Position = UDim2.new(1, -20, 0, 0)
+collapseButton.Text = "-"
+collapseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+collapseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+collapseButton.Parent = header
+
+-- Фрейм для кнопок (будет скрываться при свёртывании)
+local buttonsFrame = Instance.new("Frame")
+buttonsFrame.Size = UDim2.new(1, 0, 1, -20)
+buttonsFrame.Position = UDim2.new(0, 0, 0, 20)
+buttonsFrame.BackgroundTransparency = 1
+buttonsFrame.Parent = frame
+
+-- Делаем фрейм перемещаемым (только за заголовок)
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+        dragInput = input
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- Функция сворачивания/разворачивания
+local function toggleCollapse()
+    if buttonsFrame.Visible then
+        buttonsFrame.Visible = false
+        collapseButton.Text = "+"
+        frame.Size = UDim2.new(0, 200, 0, 20)
+    else
+        buttonsFrame.Visible = true
+        collapseButton.Text = "-"
+        frame.Size = UDim2.new(0, 200, 0, 470)
+    end
+end
+
+collapseButton.MouseButton1Click:Connect(toggleCollapse)
+
+-- Функция для уклонения (Dodge) по клавише "E"
+local UserInputService = game:GetService("UserInputService")
+
+local function dodge()
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local dodgeDirection = math.random() > 0.5 and 1 or -1
+    local dodgeVelocity = Vector3.new(dodgeDirection * 50, 0, -20)
+    rootPart.Velocity = dodgeVelocity
+
+    local dodgeEffect = Instance.new("ParticleEmitter")
+    dodgeEffect.Texture = "rbxassetid://242845789"
+    dodgeEffect.LightEmission = 0.5
+    dodgeEffect.Size = NumberSequence.new(0.5)
+    dodgeEffect.Lifetime = NumberRange.new(0.5)
+    dodgeEffect.Speed = NumberRange.new(10)
+    dodgeEffect.Parent = rootPart
+    game:GetService("Debris"):AddItem(dodgeEffect, 0.5)
+    print("Уклонение!")
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.E then
+        dodge()
+    end
+end)
+
+-- Функция для полёта
+local flyBodyVelocity, flyBodyGyro
+local flyActive = false
+
+local function enableFly(humanoid, character)
+    if flyActive then return end
+    flyActive = true
+
+    flyBodyVelocity = Instance.new("BodyVelocity")
+    flyBodyGyro = Instance.new("BodyGyro")
+    flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    flyBodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    flyBodyVelocity.Parent = character.HumanoidRootPart
+    flyBodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    flyBodyGyro.CFrame = character.HumanoidRootPart.CFrame
+    flyBodyGyro.Parent = character.HumanoidRootPart
+
+    local function flyLoop()
+        while flyBodyVelocity.Parent and flyBodyGyro.Parent and flyActive do
+            local moveDirection = Vector3.new()
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                moveDirection = moveDirection + workspace.CurrentCamera.CFrame.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                moveDirection = moveDirection - workspace.CurrentCamera.CFrame.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                moveDirection = moveDirection - workspace.CurrentCamera.CFrame.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                moveDirection = moveDirection + workspace.CurrentCamera.CFrame.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                moveDirection = moveDirection + Vector3.new(0, 1, 0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                moveDirection = moveDirection - Vector3.new(0, 1, 0)
+            end
+            flyBodyVelocity.Velocity = moveDirection * 50
+            flyBodyGyro.CFrame = workspace.CurrentCamera.CFrame
+            game:GetService("RunService").Heartbeat:Wait()
+        end
+    end
+    coroutine.wrap(flyLoop)()
+end
+
+-- Функция для отключения полёта
+local function disableFly()
+    if not flyActive then return end
+    flyActive = false
+    if flyBodyVelocity then
+        flyBodyVelocity:Destroy()
+        flyBodyVelocity = nil
+    end
+    if flyBodyGyro then
+        flyBodyGyro:Destroy()
+        flyBodyGyro = nil
+    end
+    print("Полёт отключён!")
+end
+
+-- Функция для desync
+local desyncActive = false
+local desyncConnection
+
+local function toggleDesync()
+    desyncActive = not desyncActive
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    if desyncActive then
+        local originalCFrame = character.HumanoidRootPart.CFrame
+        desyncConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            character.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+            character.HumanoidRootPart.CFrame = originalCFrame
+        end)
+        print("Desync активирован!")
+    else
+        if desyncConnection then
+            desyncConnection:Disconnect()
+        end
+        print("Desync отключён!")
+    end
+end
+
+-- Функция для Noclip
+local noclipActive = false
+local noclipConnection
+
+local function toggleNoclip()
+    noclipActive = not noclipActive
+    local character = player.Character
+    if not character then return end
+
+    if noclipActive then
+        noclipConnection = game:GetService("RunService").Stepped:Connect(function()
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end)
+        print("Noclip активирован!")
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+        end
+        print("Noclip отключён!")
+    end
+end
+
+-- Функция для ходьбы ниндзя
+local ninjaWalkActive = false
+local originalWalkSpeed = 16
+local ninjaWalkSpeed = 32
+
+local function toggleNinjaWalk()
+    ninjaWalkActive = not ninjaWalkActive
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    if ninjaWalkActive then
+        originalWalkSpeed = humanoid.WalkSpeed
+        humanoid.WalkSpeed = ninjaWalkSpeed
+        local ninjaEffect = Instance.new("ParticleEmitter")
+        ninjaEffect.Texture = "rbxassetid://242845789"
+        ninjaEffect.LightEmission = 0.7
+        ninjaEffect.Size = NumberSequence.new(0.3)
+        ninjaEffect.Lifetime = NumberRange.new(0.3)
+        ninjaEffect.Speed = NumberRange.new(5)
+        ninjaEffect.Parent = character.HumanoidRootPart
+        game:GetService("Debris"):AddItem(ninjaEffect, 5)
+        print("Ходьба ниндзя активирована!")
+    else
+        humanoid.WalkSpeed = originalWalkSpeed
+        print("Ходьба ниндзя отключена!")
+    end
+end
+
+-- Функция для автоатаки
+local autoAttackActive = false
+local autoAttackConnection
+
+local function autoAttack()
+    autoAttackActive = not autoAttackActive
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    if autoAttackActive then
+        autoAttackConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if not rootPart then return end
+
+            local nearestPlayer, nearestDistance = nil, math.huge
+            for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
+                if otherPlayer ~= player and otherPlayer.Character then
+                    local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if otherRoot then
+                        local distance = (rootPart.Position - otherRoot.Position).Magnitude
+                        if distance < 15 and distance < nearestDistance then -- Радиус атаки
+                            nearestPlayer = otherPlayer
+                            nearestDistance = distance
+                        end
+                    end
+                end
+            end
+
+            if nearestPlayer and nearestPlayer.Character then
+                local otherRoot = nearestPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if otherRoot then
+                    -- Анимация атаки
+                    local anim = Instance.new("Animation")
+                    anim.AnimationId = "rbxassetid://148847373" -- ID анимации атаки (замени на актуальный)
+                    local animTrack = humanoid:LoadAnimation(anim)
+                    animTrack:Play()
+
+                    -- Нанесение урона (если есть система урона)
+                    local damage = 10
+                    local otherHumanoid = nearestPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    if otherHumanoid then
+                        otherHumanoid:TakeDamage(damage)
+                    end
+                end
+            end
+        end)
+        print("Автоатака активирована!")
+    else
+        if autoAttackConnection then
+            autoAttackConnection:Disconnect()
+        end
+        print("Автоатака отключена!")
+    end
+end
+
+-- Создаём кнопки
+local buttons = {
+    {
+        Text = "Увеличить скорость",
+        Color = Color3.fromRGB(0, 120, 215),
+        Position = UDim2.new(0, 10, 0, 10),
+        Action = function()
+            local character = player.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.WalkSpeed = humanoid.WalkSpeed * 2
+                    print("Скорость игрока увеличена в 2 раза!")
+                end
+            end
+        end
+    },
+    {
+        Text = "Двойной прыжок",
+        Color = Color3.fromRGB(215, 0, 0),
+        Position = UDim2.new(0, 10, 0, 60),
+        Action = function()
+            local character = player.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.UseJumpPower = true
+                    humanoid.JumpPower = 50
+                    local canDoubleJump = true
+                    humanoid.StateChanged:Connect(function(oldState, newState)
+                        if newState == Enum.HumanoidStateType.Landed then
+                            canDoubleJump = true
+                        end
+                    end)
+                    UserInputService.JumpRequest:Connect(function()
+                        if canDoubleJump and humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+                            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                            canDoubleJump = false
+                        end
+                    end)
+                    print("Двойной прыжок активирован!")
+                end
+            end
+        end
+    },
+    {
+        Text = "Полёт (Fly)",
+        Color = Color3.fromRGB(0, 215, 0),
+        Position = UDim2.new(0, 10, 0, 110),
+        Action = function()
+            local character = player.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    enableFly(humanoid, character)
+                    print("Полёт активирован! (WASD + Space/Shift)")
+                end
+            end
+        end
+    },
+    {
+        Text = "Desync",
+        Color = Color3.fromRGB(215, 215, 0),
+        Position = UDim2.new(0, 10, 0, 160),
+        Action = function()
+            toggleDesync()
+            buttons[4].Button.Text = desyncActive and "Откл. Desync" or "Desync"
+        end
+    },
+    {
+        Text = "Уменьшить скорость",
+        Color = Color3.fromRGB(120, 0, 215),
+        Position = UDim2.new(0, 10, 0, 210),
+        Action = function()
+            local character = player.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.WalkSpeed = humanoid.WalkSpeed / 2
+                    print("Скорость игрока уменьшена в 2 раза!")
+                end
+            end
+        end
+    },
+    {
+        Text = "Выключить полёт",
+        Color = Color3.fromRGB(215, 0, 215),
+        Position = UDim2.new(0, 10, 0, 260),
+        Action = function()
+            disableFly()
+        end
+    },
+    {
+        Text = "Noclip",
+        Color = Color3.fromRGB(0, 150, 255),
+        Position = UDim2.new(0, 10, 0, 310),
+        Action = function()
+            toggleNoclip()
+            buttons[7].Button.Text = noclipActive and "Откл. Noclip" or "Noclip"
+        end
+    },
+    {
+        Text = "Ходьба ниндзя",
+        Color = Color3.fromRGB(150, 0, 150),
+        Position = UDim2.new(0, 10, 0, 360),
+        Action = function()
+            toggleNinjaWalk()
+            buttons[8].Button.Text = ninjaWalkActive and "Откл. Ходьбу ниндзя" or "Ходьба ниндзя"
+        end
+    },
+    {
+        Text = "Автоатака",
+        Color = Color3.fromRGB(255, 0, 0),
+        Position = UDim2.new(0, 10, 0, 410),
+        Action = function()
+            autoAttack()
+            buttons[9].Button.Text = autoAttackActive and "Откл. Автоатаку" or "Автоатака"
+        end
+    }
+}
+
+-- Создаём кнопки в интерфейсе
+for i, buttonData in ipairs(buttons) do
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 180, 0, 40)
+    button.Position = buttonData.Position
+    button.Text = buttonData.Text
+    button.BackgroundColor3 = buttonData.Color
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Parent = buttonsFrame
+    button.MouseButton1Click:Connect(buttonData.Action)
+    buttonData.Button = button
+end
+
+-- Добавляем подсказку об уклонении
+local dodgeHint = Instance.new("TextLabel")
+dodgeHint.Size = UDim2.new(1, 0, 0, 20)
+dodgeHint.Position = UDim2.new(0, 0, 1, -20)
+dodgeHint.Text = "Уклонение: Нажмите клавишу [E]"
+dodgeHint.TextColor3 = Color3.fromRGB(255, 255, 255)
+dodgeHint.BackgroundTransparency = 1
+dodgeHint.Parent = frame
